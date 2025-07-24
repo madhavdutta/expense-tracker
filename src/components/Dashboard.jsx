@@ -1,237 +1,130 @@
-import React from 'react'
-import { motion } from 'framer-motion'
-import { 
-  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
-  Tooltip, ResponsiveContainer, LineChart, Line, Area, AreaChart 
-} from 'recharts'
-import { TrendingUp, TrendingDown, DollarSign, Target, AlertTriangle } from 'lucide-react'
-import { format, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns'
+import React from 'react';
+import { motion } from 'framer-motion';
+import { TrendingUp, TrendingDown, DollarSign, Target, PieChart, BarChart3 } from 'lucide-react';
+import { formatCurrency, calculateTotalExpenses, calculateSavingsRate } from '../utils/analytics';
 
-const Dashboard = ({ expenses, budgets }) => {
-  // Calculate current month expenses
-  const currentMonth = new Date()
-  const monthStart = startOfMonth(currentMonth)
-  const monthEnd = endOfMonth(currentMonth)
-  
-  const currentMonthExpenses = expenses.filter(expense => 
-    isWithinInterval(new Date(expense.date), { start: monthStart, end: monthEnd })
-  )
+const Dashboard = ({ expenses }) => {
+  const totalExpenses = calculateTotalExpenses(expenses);
+  const monthlyIncome = 5000; // Mock income
+  const savingsRate = calculateSavingsRate(monthlyIncome, expenses);
+  const remainingBudget = monthlyIncome - totalExpenses;
 
-  const totalExpenses = currentMonthExpenses.reduce((sum, expense) => sum + expense.amount, 0)
-  const totalBudget = budgets.reduce((sum, budget) => sum + budget.amount, 0)
-  const budgetRemaining = totalBudget - totalExpenses
-
-  // Category breakdown
-  const categoryData = currentMonthExpenses.reduce((acc, expense) => {
-    acc[expense.category] = (acc[expense.category] || 0) + expense.amount
-    return acc
-  }, {})
-
-  const pieData = Object.entries(categoryData).map(([category, amount]) => ({
-    name: category,
-    value: amount,
-    percentage: ((amount / totalExpenses) * 100).toFixed(1)
-  }))
-
-  // Weekly spending trend
-  const weeklyData = []
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date()
-    date.setDate(date.getDate() - i)
-    const dayExpenses = expenses.filter(expense => 
-      format(new Date(expense.date), 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
-    ).reduce((sum, expense) => sum + expense.amount, 0)
-    
-    weeklyData.push({
-      day: format(date, 'EEE'),
-      amount: dayExpenses
-    })
-  }
-
-  // Budget vs Actual
-  const budgetComparison = budgets.map(budget => {
-    const categoryExpenses = currentMonthExpenses
-      .filter(expense => expense.category === budget.category)
-      .reduce((sum, expense) => sum + expense.amount, 0)
-    
-    return {
-      category: budget.category,
-      budget: budget.amount,
-      actual: categoryExpenses,
-      percentage: (categoryExpenses / budget.amount) * 100
+  const stats = [
+    {
+      title: 'Total Expenses',
+      value: formatCurrency(totalExpenses),
+      icon: DollarSign,
+      color: 'from-red-500 to-pink-500',
+      trend: -12.5
+    },
+    {
+      title: 'Monthly Income',
+      value: formatCurrency(monthlyIncome),
+      icon: TrendingUp,
+      color: 'from-green-500 to-emerald-500',
+      trend: 8.2
+    },
+    {
+      title: 'Savings Rate',
+      value: `${savingsRate.toFixed(1)}%`,
+      icon: Target,
+      color: 'from-blue-500 to-cyan-500',
+      trend: 15.3
+    },
+    {
+      title: 'Remaining Budget',
+      value: formatCurrency(remainingBudget),
+      icon: PieChart,
+      color: 'from-purple-500 to-indigo-500',
+      trend: remainingBudget > 0 ? 5.7 : -23.1
     }
-  })
-
-  const COLORS = ['#0ea5e9', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316']
-
-  const StatCard = ({ title, value, change, icon: Icon, color = 'primary' }) => (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="card hover:shadow-md transition-shadow duration-200"
-    >
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-600">{title}</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">${value.toLocaleString()}</p>
-          {change && (
-            <div className={`flex items-center gap-1 mt-2 ${
-              change > 0 ? 'text-danger-600' : 'text-success-600'
-            }`}>
-              {change > 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-              <span className="text-sm font-medium">{Math.abs(change)}% vs last month</span>
-            </div>
-          )}
-        </div>
-        <div className={`p-3 rounded-lg bg-${color}-100`}>
-          <Icon className={`w-6 h-6 text-${color}-600`} />
-        </div>
-      </div>
-    </motion.div>
-  )
+  ];
 
   return (
-    <div className="space-y-8">
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          title="Total Expenses"
-          value={totalExpenses}
-          change={12}
-          icon={DollarSign}
-          color="danger"
-        />
-        <StatCard
-          title="Budget Remaining"
-          value={budgetRemaining}
-          change={-8}
-          icon={Target}
-          color="success"
-        />
-        <StatCard
-          title="Monthly Budget"
-          value={totalBudget}
-          icon={Target}
-          color="primary"
-        />
-        <StatCard
-          title="Avg Daily Spend"
-          value={totalExpenses / new Date().getDate()}
-          icon={TrendingUp}
-          color="warning"
-        />
-      </div>
-
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Spending by Category */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="card"
-        >
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Spending by Category</h3>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={120}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {pieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => [`$${value}`, 'Amount']} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="grid grid-cols-2 gap-2 mt-4">
-            {pieData.map((entry, index) => (
-              <div key={entry.name} className="flex items-center gap-2">
-                <div 
-                  className="w-3 h-3 rounded-full" 
-                  style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                />
-                <span className="text-sm text-gray-600">{entry.name}</span>
-                <span className="text-sm font-medium text-gray-900">{entry.percentage}%</span>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Weekly Spending Trend */}
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="card"
-        >
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Weekly Spending Trend</h3>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={weeklyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="day" stroke="#64748b" />
-                <YAxis stroke="#64748b" />
-                <Tooltip formatter={(value) => [`$${value}`, 'Amount']} />
-                <Area 
-                  type="monotone" 
-                  dataKey="amount" 
-                  stroke="#0ea5e9" 
-                  fill="#0ea5e9" 
-                  fillOpacity={0.1}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Budget vs Actual */}
+    <div className="space-y-6">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="card"
+        className="text-center mb-8"
       >
-        <h3 className="text-lg font-semibold text-gray-900 mb-6">Budget vs Actual Spending</h3>
-        <div className="space-y-4">
-          {budgetComparison.map((item, index) => (
-            <div key={item.category} className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-gray-900">{item.category}</span>
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-gray-600">
-                    ${item.actual.toLocaleString()} / ${item.budget.toLocaleString()}
-                  </span>
-                  {item.percentage > 90 && (
-                    <AlertTriangle className="w-4 h-4 text-warning-500" />
-                  )}
-                </div>
+        <h1 className="text-4xl font-bold gradient-text mb-2">Financial Dashboard</h1>
+        <p className="text-white/70">Track your expenses and achieve your financial goals</p>
+      </motion.div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {stats.map((stat, index) => (
+          <motion.div
+            key={stat.title}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.1 }}
+            className="glass-card hover:scale-105 transition-transform duration-300"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className={`p-3 rounded-xl bg-gradient-to-r ${stat.color}`}>
+                <stat.icon className="w-6 h-6 text-white" />
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className={`h-2 rounded-full transition-all duration-500 ${
-                    item.percentage > 100 ? 'bg-danger-500' :
-                    item.percentage > 80 ? 'bg-warning-500' : 'bg-success-500'
-                  }`}
-                  style={{ width: `${Math.min(item.percentage, 100)}%` }}
-                />
-              </div>
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>{item.percentage.toFixed(1)}% used</span>
-                <span>${(item.budget - item.actual).toLocaleString()} remaining</span>
+              <div className="flex items-center space-x-1">
+                {stat.trend > 0 ? (
+                  <TrendingUp className="w-4 h-4 text-green-400" />
+                ) : (
+                  <TrendingDown className="w-4 h-4 text-red-400" />
+                )}
+                <span className={`text-sm ${stat.trend > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {Math.abs(stat.trend)}%
+                </span>
               </div>
             </div>
-          ))}
+            <h3 className="text-2xl font-bold text-white mb-1">{stat.value}</h3>
+            <p className="text-white/60 text-sm">{stat.title}</p>
+          </motion.div>
+        ))}
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="glass-card"
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-white">Budget Progress</h2>
+          <BarChart3 className="w-5 h-5 text-white/60" />
+        </div>
+        
+        <div className="space-y-4">
+          <div className="flex justify-between text-sm">
+            <span className="text-white/70">Spent: {formatCurrency(totalExpenses)}</span>
+            <span className="text-white/70">Budget: {formatCurrency(monthlyIncome)}</span>
+          </div>
+          
+          <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.min((totalExpenses / monthlyIncome) * 100, 100)}%` }}
+              transition={{ duration: 1, delay: 0.5 }}
+              className={`h-full rounded-full ${
+                totalExpenses > monthlyIncome 
+                  ? 'bg-gradient-to-r from-red-500 to-red-600' 
+                  : 'bg-gradient-to-r from-blue-500 to-purple-500'
+              }`}
+            />
+          </div>
+          
+          <div className="flex justify-between items-center">
+            <span className="text-white/70 text-sm">
+              {((totalExpenses / monthlyIncome) * 100).toFixed(1)}% of budget used
+            </span>
+            <span className={`text-sm font-medium ${
+              remainingBudget > 0 ? 'text-green-400' : 'text-red-400'
+            }`}>
+              {remainingBudget > 0 ? 'Under budget' : 'Over budget'}
+            </span>
+          </div>
         </div>
       </motion.div>
     </div>
-  )
-}
+  );
+};
 
-export default Dashboard
+export default Dashboard;
